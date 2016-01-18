@@ -4,11 +4,43 @@
 /*global $form:true*/
 
 //set Public key for Stripe payments
-Stripe.setPublishableKey( 'pk_test_6pRNASCoBOKtIshFeQd4XMUh' );
+Stripe.setPublishableKey( 'pk_test_P31VRX8ZdnknJkEtTcIt5k42' );
+
+
+var submitCreateTransaction = function(token) {
+    $('form').append( $( '<input type="hidden" name="stripeToken" />' ).val( token ) );
+    // and submit
+    $.ajax( {
+        url: '/createtransaction',
+        type: 'POST',
+        headers: {
+            'x-access-token': $( '#token' ).html(),
+        },
+        data: {
+            amount: $( '#amount' ).val(),
+            currency: $( '#currency' ).val(),
+            stripeToken: token
+        }
+    } ).done( function( response ) {
+        if ( response.message ) {
+            $( '.payment-errors' ).text( response.message );
+        }
+    } );  
+};
+
 var isSubmit = false;
 $( document ).ready( function() {
     $( '#submittransaction' ).click( function() {
+        
         console.log( 'ok' );
+        
+        var paymentsource = $("form input[name='paymentsource']:checked" ).val();
+        if (paymentsource && paymentsource.length > 0) {
+            submitCreateTransaction(paymentsource);
+            return;
+        }
+        
+        // Use new card
         if ( !isSubmit ) {
             Stripe.card.createToken( {
                 number: $( '.card-number' ).val(),
@@ -24,24 +56,7 @@ $( document ).ready( function() {
                     // response contains id and card, which contains additional card details
                     var token = response.id;
                     // Insert the token into the form so it gets submitted to the server
-                    $form.append( $( '<input type="hidden" name="stripeToken" />' ).val( token ) );
-                    // and submit
-                    $.ajax( {
-                        url: '/createtransaction',
-                        type: 'POST',
-                        headers: {
-                            'x-access-token': $( '#token' ).html()
-                        },
-                        data: {
-                            amount: $( '#amount' ).val(),
-                            currency: $( '#currency' ).val(),
-                            token: token
-                        }
-                    } ).done( function( response ) {
-                        if ( response.message ) {
-                            $( '.payment-errors' ).text( response.message );
-                        }
-                    } );
+                    submitCreateTransaction(token);
                 }
 
             } );

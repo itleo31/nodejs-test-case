@@ -12,7 +12,13 @@ exports.index = function( req, res ) {
     }, function( err, user ) {
 
         if ( err ) {
-            throw err;
+            // Should response with success: false to indicate something error and avoid app crash.
+            // throw err;
+            
+            return res.status( 500 ).json( {
+                success: false,
+                message: 'Login failed. Something goes wrong. Please try again later.'
+            } );
         }
 
         if ( !user ) {
@@ -43,6 +49,7 @@ exports.index = function( req, res ) {
                 // return the information including token as JSON
                 res.render( 'transactions', {
                     token: token,
+                    source: user.source || false,
                     title: 'Transactions Page'
                 } );
 
@@ -60,7 +67,13 @@ exports.register = function( req, res ) {
     }, function( err, user ) {
 
         if ( err ) {
-            throw err;
+            // Should response with success: false to indicate something error and avoid app crash.
+            // throw err;
+            
+            return res.status( 500 ).json( {
+                success: false,
+                message: 'Register failed. Something goes wrong. Please try again later.'
+            } );
         }
 
         if ( user ) {
@@ -91,6 +104,7 @@ exports.register = function( req, res ) {
                 // return the information including token as JSON
                 res.render( 'transactions', {
                     token: token,
+                    source: false,
                     title: 'Transactions Page'
                 } );
             } );

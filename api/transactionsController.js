@@ -11,7 +11,10 @@ exports.index = function( req, res, next ) {
         } );
         transaction.save( function( err, trans ) {
             if ( err ) {
-                return console.log( err );
+                console.log( err );
+                return res.status(500).json({
+                    message: 'Error occured. Please try again'
+                });
             }
             res.status( 200 ).end();
         } );
@@ -19,16 +22,36 @@ exports.index = function( req, res, next ) {
 };
 
 exports.createTransaction = function( req, res, next ) {
-
-    Stripe.charges.create( {
+    console.log('create transaction');
+    
+    // Check if req does not contain token
+    var source = req.body.stripeToken;
+    
+    if (!source) {
+        // Res message if not found token
+        return res.status(200).json({
+            success: false,
+            message: 'Token not found'
+        });
+    }
+    
+    // Charge request body
+    var params = {
         amount: req.body.amount,
         currency: req.body.currency,
-        source: req.body.token,
-        description: 'Charge for test@example.com'
-    }, function( err, charge ) {
+        source: source,
+        description: 'Charge for ' + req.user.name
+    };
+    
+    var chargeCallback = function( err, charge ) {
         if ( err ) {
-            return console.log( err );
+            console.log( err );
+            // Response to client
+            return res.status(500).json({
+                message: 'Error occured. Please try again'
+            });
         }
+        
         var transaction = new Transactions( {
             transactionId: charge.id,
             amount: charge.amount,
@@ -40,14 +63,57 @@ exports.createTransaction = function( req, res, next ) {
         } );
         transaction.save( function( err ) {
                 if ( err ) {
-                    return res.status( 500 );
+                    // Response a message
+                    return res.status( 500 ).send({
+                        message: 'Failed to create payment'
+                    });
                 }
                 else {
-                    res.status( 200 ).json( {
-                        message: 'Payment is created.'
-                    } );
+                    // Update sourceId to user for using later.
+                    var user = req.user;
+                    
+                    user.source = charge.source;
+                    
+                    user.save(function(err) {
+                        
+                       if (err) {
+                           // Althougt we got error when saving source, but Payment actually created successfully.
+                           // So log message here and not response error.
+                           console.log('Failed to save source for user:');
+                           console.log(err);
+                       } 
+                       
+                       res.status( 200 ).json( {
+                            message: 'Payment is created.'
+                        } );
+                    });
+                    
                 }
             } );
             // asynchronously called
-    } );
+    };
+    
+    if (!req.user.stripeCustomerId) {
+        // Create Stripe customer to track payments for this user if hasn't existed
+        Stripe.customers.create({
+            description: 'Customer for ' + req.user.name,
+            source: source 
+        }, function(err, customer) {
+            // Save customer to user object
+            req.user.stripeCustomerId = customer.id;
+            
+            params.customer = customer.id;
+            params.source = customer.sources.data[0].id;
+            Stripe.charges.create(params, chargeCallback);
+        });
+    } else {
+        params.customer = req.user.stripeCustomerId;
+        
+        Stripe.charges.create(params, chargeCallback);
+    }
+    
+    
+    
+    
+    
 };
